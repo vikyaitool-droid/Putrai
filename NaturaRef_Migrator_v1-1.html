@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NaturaRef — Data Migrator v1</title>
+<script src="https://js.puter.com/v2/"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;padding:24px}
+h1{font-size:20px;font-weight:700;color:#f8fafc;margin-bottom:4px}
+.sub{font-size:13px;color:#94a3b8;margin-bottom:24px}
+.card{background:#1e2330;border:1px solid #2d3548;border-radius:10px;padding:20px;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px}
+
+/* Drop zone */
+.drop-zone{border:2px dashed #334155;border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:all .2s;background:#161b27}
+.drop-zone:hover,.drop-zone.dragover{border-color:#6366f1;background:#1a1f35}
+.drop-zone input{display:none}
+.drop-icon{font-size:36px;margin-bottom:8px}
+.drop-label{font-size:15px;color:#94a3b8}
+.drop-hint{font-size:12px;color:#475569;margin-top:4px}
+.file-ready{color:#22c55e;font-weight:600}
+
+/* Controls */
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+button{padding:9px 18px;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:#6366f1;color:#fff}
+.btn-primary:hover{background:#4f46e5}
+.btn-primary:disabled{background:#374151;color:#6b7280;cursor:not-allowed}
+.btn-secondary{background:#1e2330;border:1px solid #334155;color:#94a3b8}
+.btn-secondary:hover{border-color:#6366f1;color:#6366f1}
+.btn-danger{background:#7f1d1d;border:1px solid #991b1b;color:#fca5a5}
+.btn-danger:hover{background:#991b1b}
+
+/* Section grid */
+.section-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:12px}
+.section-item{background:#161b27;border:1px solid #2d3548;border-radius:7px;padding:10px 12px;display:flex;align-items:center;gap:8px;font-size:12px}
+.section-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#374151}
+.section-item.eager .dot{background:#6366f1}
+.section-item.done .dot{background:#22c55e}
+.section-item.error .dot{background:#ef4444}
+.section-item.running .dot{background:#f59e0b;animation:pulse 1s infinite}
+.section-item.review .dot{background:#f97316}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.section-name{font-weight:600;color:#cbd5e1}
+.section-count{margin-left:auto;color:#64748b;font-size:11px}
+
+/* Progress bar */
+.progress-wrap{margin-top:12px;background:#161b27;border-radius:4px;height:6px;overflow:hidden}
+.progress-bar{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);transition:width .3s;border-radius:4px}
+
+/* Log */
+.log{background:#0d1117;border:1px solid #1e2330;border-radius:8px;padding:14px;font-family:'Fira Code','Cascadia Code',monospace;font-size:11.5px;height:320px;overflow-y:auto;margin-top:10px}
+.log-entry{margin-bottom:3px;line-height:1.5}
+.log-ok{color:#4ade80}
+.log-info{color:#60a5fa}
+.log-warn{color:#fbbf24}
+.log-err{color:#f87171}
+.log-dim{color:#475569}
+.log-head{color:#a78bfa;font-weight:700}
+
+/* Stats bar */
+.stats{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px}
+.stat{background:#161b27;border:1px solid #2d3548;border-radius:7px;padding:8px 14px;text-align:center}
+.stat-n{font-size:22px;font-weight:700;color:#f8fafc}
+.stat-l{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+
+/* Download area */
+.download-area{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.dl-chip{background:#14532d;border:1px solid #166534;color:#4ade80;padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px}
+.dl-chip:hover{background:#166534}
+</style>
+</head>
+<body>
+
+<h1>🌿 NaturaRef — Data Migrator v1</h1>
+<p class="sub">Extracts all D_* card arrays → structured JSON → writes to Puter FS <code>/naturaref/data/v1/</code></p>
+
+<!-- Step 1: File drop -->
+<div class="card">
+  <div class="card-title">Step 1 — Load Source File</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".html">
+    <div class="drop-icon">📂</div>
+    <div class="drop-label" id="dropLabel">Drop NaturaRef_Portal_v7-3-2.html here, or click to browse</div>
+    <div class="drop-hint">File stays local — never uploaded anywhere except Puter FS on your account</div>
+  </div>
+  <div class="controls">
+    <button class="btn-primary" id="btnAnalyse" disabled onclick="runAnalysis()">Analyse File</button>
+    <button class="btn-secondary" onclick="clearAll()">Clear</button>
+  </div>
+</div>
+
+<!-- Step 2: Section map -->
+<div class="card" id="cardSections" style="display:none">
+  <div class="card-title">Step 2 — Section Registry <span id="sectionSummary" style="color:#64748b;font-weight:400;font-size:11px"></span></div>
+  <div class="section-grid" id="sectionGrid"></div>
+  <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+  <div class="stats" id="statsRow"></div>
+  <div class="controls" style="margin-top:16px">
+    <button class="btn-primary" id="btnMigrate" onclick="runMigration()">▶ Run Migration → Puter FS</button>
+    <button class="btn-secondary" id="btnDownload" style="display:none" onclick="downloadAllJSON()">⬇ Download JSON locally</button>
+    <button class="btn-danger" id="btnWipe" style="display:none" onclick="wipePuterFS()">🗑 Wipe /naturaref/</button>
+  </div>
+</div>
+
+<!-- Step 3: Log -->
+<div class="card" id="cardLog" style="display:none">
+  <div class="card-title">Migration Log</div>
+  <div class="log" id="log"></div>
+  <div class="download-area" id="downloadArea"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  GLOBALS
+// ═══════════════════════════════════════════════════════════
+let sourceText = '';
+let extractedSections = {};  // sectionId → { cards[], schema }
+let sectionMeta = [];        // ordered list of { varName, id, schema, priority }
+const PUTER_BASE = '/naturaref/data/v1';
+
+// All D_ variables in the source file, mapped to section IDs and schema types
+// schema: 'A' = {t,badge,c}, 'B' = lab {name,abbr,ref,up,dn,tip}, 'C' = pearls {title,body,cat}
+const D_REGISTRY = [
+  // eager (load at boot)
+  { varName:'D_LAB',          id:'lab',           schema:'B', priority:'eager' },
+  { varName:'D_SKILLS',       id:'skills',        schema:'A', priority:'eager' },
+  // lazy
+  { varName:'D_EXAM',         id:'exam',          schema:'A', priority:'lazy'  },
+  { varName:'D_BNYS',         id:'bnys',          schema:'A', priority:'lazy'  },
+  { varName:'D_IMAGING',      id:'imaging',       schema:'A', priority:'lazy'  },
+  { varName:'D_GUT',          id:'gut',           schema:'A', priority:'lazy'  },
+  { varName:'D_ONCO',         id:'onco',          schema:'A', priority:'lazy'  },
+  { varName:'D_DOSING',       id:'dosing',        schema:'A', priority:'lazy'  },
+  { varName:'D_FMLABS',       id:'fmlabs',        schema:'A', priority:'lazy'  },
+  { varName:'D_EMERGENCY',    id:'emergency',     schema:'A', priority:'lazy'  },
+  { varName:'D_PSYCHIATRY',   id:'psychiatry',    schema:'A', priority:'lazy'  },
+  { varName:'D_ALGORITHMS',   id:'algorithms',    schema:'A', priority:'lazy'  },
+  { varName:'D_METABOLIC',    id:'metabolic',     schema:'A', priority:'lazy'  },
+  { varName:'D_CHROMOTHERAPY',id:'chromotherapy', schema:'A', priority:'lazy'  },
+  { varName:'D_MAGNETO',      id:'magneto',       schema:'A', priority:'lazy'  },
+  { varName:'D_CLINNUT',      id:'clinnut',       schema:'A', priority:'lazy'  },
+  { varName:'D_COLON',        id:'colon',         schema:'A', priority:'lazy'  },
+  { varName:'D_LIFESTYLE',    id:'lifestyle',     schema:'A', priority:'lazy'  },
+  { varName:'D_DETOX',        id:'detox',         schema:'A', priority:'lazy'  },
+  { varName:'D_TREAT_MANIP',  id:'manipulation',  schema:'A', priority:'lazy'  },
+  { varName:'D_HELIO',        id:'helio',         schema:'A', priority:'lazy'  },
+  { varName:'D_ACUPTHERA',    id:'acupthera',     schema:'A', priority:'lazy'  },
+  { varName:'D_INTPAIN',      id:'intpain',       schema:'A', priority:'lazy'  },
+  { varName:'D_FIRSTAID',     id:'firstaid',      schema:'A', priority:'lazy'  },
+  { varName:'D_PHYSIO',       id:'physio',        schema:'A', priority:'lazy'  },
+  { varName:'D_COUNSELLING',  id:'counselling',   schema:'A', priority:'lazy'  },
+  { varName:'D_SIGNSEPONYMS', id:'signseponyms',  schema:'A', priority:'lazy'  },
+  { varName:'D_MINDBODY',     id:'mindbody',      schema:'A', priority:'lazy'  },
+  { varName:'D_NUTBIO',       id:'nutbio',        schema:'A', priority:'lazy'  },
+  { varName:'D_HERBAL',       id:'herbal',        schema:'A', priority:'lazy'  },
+  { varName:'D_ENVMED',       id:'envmed',        schema:'A', priority:'lazy'  },
+  { varName:'D_SPORTMED',     id:'sportmed',      schema:'A', priority:'lazy'  },
+  { varName:'D_ORALDENT',     id:'oraldent',      schema:'A', priority:'lazy'  },
+  { varName:'D_POCUS',        id:'pocus',         schema:'A', priority:'lazy'  },
+  { varName:'D_CLINSCORING',  id:'clinscoring',   schema:'A', priority:'lazy'  },
+  { varName:'D_MICROGUIDE',   id:'microguide',    schema:'A', priority:'lazy'  },
+  { varName:'D_YOGATHERA',    id:'yogathera',     schema:'A', priority:'lazy'  },
+  { varName:'D_PANCHAKARMA',  id:'panchakarma',   schema:'A', priority:'lazy'  },
+  { varName:'D_CLINICMGT',    id:'clinicmgt',     schema:'A', priority:'lazy'  },
+  { varName:'D_BNYSEXAM',     id:'bnysexam',      schema:'A', priority:'lazy'  },
+  { varName:'D_BNYS_PROTOCOLS',id:'bnysprotocols',schema:'A', priority:'lazy'  },
+  { varName:'D_ANATOMY',      id:'anatomy',       schema:'A', priority:'lazy'  },
+  // PEARLS — standalone array, not an object
+  { varName:'PEARLS',         id:'pearls',        schema:'C', priority:'lazy', isArray:true },
+];
+
+// ═══════════════════════════════════════════════════════════
+//  FILE HANDLING
+// ═══════════════════════════════════════════════════════════
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+function loadFile(file) {
+  const label = document.getElementById('dropLabel');
+  label.textContent = `Loading ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)…`;
+  const reader = new FileReader();
+  reader.onload = e => {
+    sourceText = e.target.result;
+    label.innerHTML = `<span class="file-ready">✓ ${file.name}</span> — ${(file.size/1024/1024).toFixed(1)} MB, ${sourceText.split('\n').length.toLocaleString()} lines`;
+    document.getElementById('btnAnalyse').disabled = false;
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  JS OBJECT EXTRACTOR — character-level state machine
+//  Handles nested objects, arrays, all string types incl. template literals
+// ═══════════════════════════════════════════════════════════
+function extractJSValue(src, varName, isArray) {
+  // Find the declaration: `const varName = ` or `var varName = `
+  const markers = [`const ${varName} = `, `var ${varName} = `, `let ${varName} = `];
+  let pos = -1;
+  for (const m of markers) {
+    pos = src.indexOf(m);
+    if (pos !== -1) { pos += m.length; break; }
+  }
+  if (pos === -1) return null;
+
+  // Skip whitespace to find opening bracket
+  while (pos < src.length && /\s/.test(src[pos])) pos++;
+  const openChar = isArray ? '[' : '{';
+  const closeChar = isArray ? ']' : '}';
+  if (src[pos] !== openChar) return null;
+
+  const start = pos;
+  let depth = 0;
+  // States: N=normal, SD=string-double, SS=string-single, T=template, TE=template-expr
+  let state = 'N';
+  let teDepth = 0;   // nesting inside ${}
+  let i = start;
+
+  while (i < src.length) {
+    const ch = src[i];
+
+    if (state === 'N') {
+      if      (ch === '"')  { state = 'SD'; }
+      else if (ch === "'")  { state = 'SS'; }
+      else if (ch === '`')  { state = 'T';  }
+      else if (ch === '/' && src[i+1] === '/') { // line comment
+        while (i < src.length && src[i] !== '\n') i++;
+        i++; continue;
+      }
+      else if (ch === '/' && src[i+1] === '*') { // block comment
+        i += 2;
+        while (i < src.length && !(src[i-1] === '*' && src[i] === '/')) i++;
+        i++; continue;
+      }
+      else if (ch === openChar)  { depth++; }
+      else if (ch === closeChar) {
+        depth--;
+        if (depth === 0) return src.slice(start, i + 1);
+      }
+    }
+    else if (state === 'SD') {
+      if      (ch === '\\') { i++; }        // escaped char
+      else if (ch === '"')  { state = 'N'; }
+    }
+    else if (state === 'SS') {
+      if      (ch === '\\') { i++; }
+      else if (ch === "'")  { state = 'N'; }
+    }
+    else if (state === 'T') {
+      if      (ch === '\\')             { i++; }  // escaped char in template
+      else if (ch === '`')              { state = 'N'; }
+      else if (ch === '$' && src[i+1] === '{') {
+        state = 'TE'; teDepth = 1; i++;  // skip the {
+      }
+    }
+    else if (state === 'TE') {
+      // Inside ${...} — we track depth but don't parse deeply (no nested templates needed)
+      if      (ch === '{')  { teDepth++; }
+      else if (ch === '}')  { teDepth--; if (teDepth === 0) state = 'T'; }
+      else if (ch === '"')  { // consume double-quoted string inside expression
+        i++;
+        while (i < src.length && src[i] !== '"') { if (src[i] === '\\') i++; i++; }
+      }
+      else if (ch === "'")  {
+        i++;
+        while (i < src.length && src[i] !== "'") { if (src[i] === '\\') i++; i++; }
+      }
+      else if (ch === '`')  {  // nested template (simplified — no ${} inside)
+        i++;
+        while (i < src.length && src[i] !== '`') { if (src[i] === '\\') i++; i++; }
+      }
+    }
+
+    i++;
+  }
+  return null;  // unbalanced — shouldn't happen
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SCHEMA B: Lab card  {name, abbr, ref, up[], dn[], tip}
+// ═══════════════════════════════════════════════════════════
+function slugify(str) {
+  return str.toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80)
+    .replace(/^-+|-+$/g, '');
+}
+
+const idRegistry = new Set();
+function makeId(section, category, title) {
+  let base = slugify(`${section}-${category}-${title}`);
+  let id = base;
+  let n = 2;
+  while (idRegistry.has(id)) { id = `${base}-${n++}`; }
+  idRegistry.add(id);
+  return id;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SCHEMA B: Lab card
+// ═══════════════════════════════════════════════════════════
+function mapLabCard(raw, category, sectionId) {
+  const up = (raw.up || []).map(s => String(s));
+  const dn = (raw.dn || []).map(s => String(s));
+
+  // Build a two-column table: cause | direction
+  const rows = [];
+  up.forEach(c => rows.push([c, '↑ Elevated']));
+  dn.filter(d => d !== '—').forEach(c => rows.push([c, '↓ Low']));
+
+  return {
+    id: makeId(sectionId, category, raw.name || ''),
+    title: String(raw.name || ''),
+    badge: category.toUpperCase(),
+    category,
+    section: sectionId,
+    version: 1,
+    lastUpdated: new Date().toISOString().slice(0,10),
+    content: {
+      summary: raw.tip ? String(raw.tip) : null,
+      alerts: raw.ref ? [{
+        type: 'info',
+        label: 'Reference Range',
+        text: String(raw.ref).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&')
+      }] : [],
+      tables: rows.length ? [{
+        caption: 'Causes',
+        headers: ['Cause', 'Direction'],
+        rows
+      }] : [],
+      pearls: [],
+      steps: [],
+      references: []
+    },
+    _meta: { abbr: raw.abbr || null }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SCHEMA C: PEARLS card  {title, body, cat}
+// ═══════════════════════════════════════════════════════════
+function mapPearlCard(raw, idx) {
+  return {
+    id: makeId('pearls', slugify(raw.cat || 'general'), raw.title || `pearl-${idx}`),
+    title: String(raw.title || ''),
+    badge: String(raw.cat || ''),
+    category: slugify(raw.cat || 'general'),
+    section: 'pearls',
+    version: 1,
+    lastUpdated: new Date().toISOString().slice(0,10),
+    content: {
+      summary: String(raw.body || ''),
+      alerts: [], tables: [], pearls: [], steps: [], references: []
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SCHEMA A: HTML card  {t, badge, c}  → DOMParser extraction
+// ═══════════════════════════════════════════════════════════
+function alertTypeFromClass(cls) {
+  if (cls.includes('a-red'))  return 'danger';
+  if (cls.includes('a-amb'))  return 'warning';
+  if (cls.includes('a-grn'))  return 'info';
+  if (cls.includes('a-tip') || cls.includes('tip')) return 'tip';
+  if (cls.includes('a-info')) return 'info';
+  return 'info';
+}
+
+function extractAlerts(body) {
+  const alerts = [];
+  body.querySelectorAll('.alert').forEach(el => {
+    const clone = el.cloneNode(true);
+    const labelEl = clone.querySelector('.a-label');
+    const label = labelEl ? labelEl.textContent.trim() : '';
+    if (labelEl) labelEl.remove();
+    const text = clone.textContent.trim();
+    alerts.push({ type: alertTypeFromClass(el.className), label, text });
+  });
+  return alerts;
+}
+
+function extractTables(body) {
+  const tables = [];
+  body.querySelectorAll('table').forEach(tbl => {
+    const headers = [...tbl.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    const rows = [...tbl.querySelectorAll('tbody tr')].map(tr =>
+      [...tr.querySelectorAll('td')].map(td => td.textContent.trim())
+    ).filter(r => r.length > 0);
+    const caption = tbl.querySelector('caption')?.textContent?.trim() || null;
+    if (headers.length || rows.length) tables.push({ caption, headers, rows });
+  });
+  return tables;
+}
+
+function extractPearls(body) {
+  const pearls = [];
+  body.querySelectorAll('.pearl').forEach(el => {
+    const label = el.querySelector('.pl')?.textContent?.trim() || '';
+    const text  = el.querySelector('.pt')?.textContent?.trim() || '';
+    if (label || text) pearls.push({ label, text });
+  });
+  return pearls;
+}
+
+function extractSteps(body) {
+  const steps = [];
+  body.querySelectorAll('.steps').forEach(stepsEl => {
+    stepsEl.querySelectorAll('.step').forEach(step => {
+      const snEl = step.querySelector('.sn');
+      const stEl = step.querySelector('.st');
+      const shEl = stEl?.querySelector('.sh');
+
+      const n = parseInt(snEl?.textContent?.trim() || '0') || 0;
+      const title = shEl?.textContent?.trim() || '';
+
+      const stClone = stEl ? stEl.cloneNode(true) : null;
+      stClone?.querySelector('.sh')?.remove();
+      const text = stClone?.textContent?.trim() || step.textContent.trim();
+
+      steps.push({ n, title, text });
+    });
+  });
+  return steps;
+}
+
+function extractSummary(body) {
+  const parts = [];
+  // top-level <p> and text nodes that are NOT inside known blocks
+  const knownSelectors = '.alert, table, .pearl, .steps, .step';
+  for (const node of body.childNodes) {
+    if (node.nodeType === 3) {
+      const t = node.textContent.trim();
+      if (t) parts.push(t);
+    } else if (node.nodeType === 1 && node.tagName === 'P') {
+      const t = node.textContent.trim();
+      if (t) parts.push(t);
+    }
+  }
+  return parts.join('\n').trim() || null;
+}
+
+function mapHTMLCard(raw, category, sectionId) {
+  const htmlStr = raw.c || '';
+  const legacyHtml = htmlStr.trim();
+  let content = { summary: null, alerts: [], tables: [], pearls: [], steps: [], references: [] };
+  let reviewFlag = false;
+
+  try {
+    const doc = new DOMParser().parseFromString(htmlStr, 'text/html');
+    const body = doc.body;
+
+    content.alerts  = extractAlerts(body);
+    content.tables  = extractTables(body);
+    content.pearls  = extractPearls(body);
+    content.steps   = extractSteps(body);
+    content.summary = extractSummary(body);
+
+    // Check: did we capture anything meaningful?
+    const hasContent = content.alerts.length || content.tables.length ||
+                       content.pearls.length || content.steps.length || content.summary;
+    if (!hasContent && legacyHtml.length > 20) reviewFlag = true;
+  } catch (e) {
+    reviewFlag = true;
+  }
+
+  return {
+    id: makeId(sectionId, category, raw.t || ''),
+    title: String(raw.t || ''),
+    badge: String(raw.badge || ''),
+    category,
+    section: sectionId,
+    version: 1,
+    lastUpdated: new Date().toISOString().slice(0,10),
+    content,
+    _legacyHtml: legacyHtml,   // preserved until QA sign-off
+    _review: reviewFlag
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SECTION PROCESSOR — evaluates extracted JS literal
+//  and maps cards using the appropriate schema
+// ═══════════════════════════════════════════════════════════
+function processSection(entry) {
+  const { varName, id, schema, isArray } = entry;
+  const raw = extractJSValue(sourceText, varName, isArray);
+  if (!raw) return { cards: [], reviewCards: [], error: `Variable ${varName} not found in source` };
+
+  let parsed;
+  try {
+    // eslint-disable-next-line no-new-func
+    parsed = new Function(`return (${raw})`)();
+  } catch(e) {
+    return { cards: [], reviewCards: [], error: `Eval failed for ${varName}: ${e.message}` };
+  }
+
+  const cards = [];
+  const reviewCards = [];
+
+  if (schema === 'C') {
+    // PEARLS — flat array
+    (Array.isArray(parsed) ? parsed : []).forEach((item, idx) => {
+      cards.push(mapPearlCard(item, idx));
+    });
+    return { cards, reviewCards };
+  }
+
+  if (schema === 'B') {
+    // Lab cards — object of category arrays: { cbc: [...], lft: [...], ... }
+    for (const [cat, arr] of Object.entries(parsed)) {
+      if (!Array.isArray(arr)) continue;
+      arr.forEach(item => {
+        if (item && item.name) cards.push(mapLabCard(item, cat, id));
+      });
+    }
+    return { cards, reviewCards };
+  }
+
+  // Schema A — object of category arrays: { mud: [...], diet: [...] }
+  for (const [cat, arr] of Object.entries(parsed)) {
+    if (!Array.isArray(arr)) continue;
+    arr.forEach(item => {
+      if (!item || !item.t) return;
+      const card = mapHTMLCard(item, cat, id);
+      if (card._review) reviewCards.push(card);
+      else cards.push(card);
+    });
+  }
+  return { cards, reviewCards };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ANALYSIS PASS (dry run — no writes)
+// ═══════════════════════════════════════════════════════════
+const sectionState = {};  // id → { status, cardCount, reviewCount, error }
+
+async function runAnalysis() {
+  document.getElementById('cardSections').style.display = '';
+  document.getElementById('cardLog').style.display = '';
+  document.getElementById('btnAnalyse').disabled = true;
+
+  const grid = document.getElementById('sectionGrid');
+  grid.innerHTML = '';
+  log('head', '═══ ANALYSIS PASS ═══');
+  log('info', `Source loaded — scanning for ${D_REGISTRY.length} variable declarations…`);
+
+  let totalFound = 0, totalCards = 0, totalReview = 0;
+
+  for (const entry of D_REGISTRY) {
+    const { varName, id, priority } = entry;
+    const itemEl = document.createElement('div');
+    itemEl.className = `section-item ${priority === 'eager' ? 'eager' : ''} running`;
+    itemEl.id = `sec-${id}`;
+    itemEl.innerHTML = `<div class="dot"></div><div class="section-name">${id}</div><div class="section-count" id="sc-${id}">…</div>`;
+    grid.appendChild(itemEl);
+
+    await tick();
+
+    const result = processSection(entry);
+    sectionState[id] = result;
+    idRegistry.clear(); // reset for next section (we're in analysis; IDs regenerated on migration)
+
+    const hasError = !!result.error;
+    itemEl.className = `section-item ${priority === 'eager' ? 'eager' : ''} ${hasError ? 'error' : result.reviewCards.length ? 'review' : 'done'}`;
+    const total = result.cards.length + result.reviewCards.length;
+    document.getElementById(`sc-${id}`).textContent = hasError ? 'ERR' : `${total} cards`;
+
+    if (hasError) {
+      log('err', `✗ ${varName} — ${result.error}`);
+    } else {
+      totalFound++;
+      totalCards += result.cards.length;
+      totalReview += result.reviewCards.length;
+      const msg = result.reviewCards.length
+        ? `⚠ ${varName} — ${result.cards.length} clean, ${result.reviewCards.length} flagged for review`
+        : `✓ ${varName} — ${result.cards.length + result.reviewCards.length} cards`;
+      log(result.reviewCards.length ? 'warn' : 'ok', msg);
+    }
+  }
+
+  document.getElementById('sectionSummary').textContent = `— ${totalFound} sections found`;
+  renderStats(totalFound, totalCards, totalReview, D_REGISTRY.length - totalFound);
+  document.getElementById('btnMigrate').disabled = false;
+  document.getElementById('btnDownload').style.display = '';
+  log('head', `═══ ANALYSIS COMPLETE — ${totalCards} clean cards, ${totalReview} for review ═══`);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MIGRATION — write to Puter FS
+// ═══════════════════════════════════════════════════════════
+async function runMigration() {
+  document.getElementById('btnMigrate').disabled = true;
+  idRegistry.clear();
+
+  log('head', '═══ PUTER FS MIGRATION START ═══');
+
+  // Ensure directories — each in its own try so a root-level failure doesn't skip deeper paths
+  for (const dir of ['/naturaref', '/naturaref/data', '/naturaref/data/v1', '/naturaref/index']) {
+    try { await puter.fs.mkdir(dir); } catch(e) {
+      log('dim', `mkdir ${dir}: ${e.message}`);
+    }
+  }
+  log('ok', 'Directory tree ready: /naturaref/data/v1/');
+
+  const manifest = {
+    schemaVersion: '1.0',
+    appVersion: '7.3.2',
+    generatedAt: new Date().toISOString(),
+    sections: []
+  };
+
+  let done = 0;
+  const reviewQueue = [];
+
+  for (const entry of D_REGISTRY) {
+    const { varName, id, priority } = entry;
+    setSecStatus(id, 'running');
+    log('info', `Processing ${varName}…`);
+    await tick();
+
+    // Re-process to get fresh IDs (idRegistry is cumulative here for global uniqueness)
+    const result = processSection(entry);
+
+    if (result.error) {
+      log('err', `✗ ${varName}: ${result.error}`);
+      setSecStatus(id, 'error');
+      continue;
+    }
+
+    const allCards = [...result.cards, ...result.reviewCards];
+    result.reviewCards.forEach(c => reviewQueue.push(c));
+
+    const sectionFile = {
+      schemaVersion: '1.0',
+      section: id,
+      generatedAt: new Date().toISOString(),
+      cardCount: allCards.length,
+      cards: allCards
+    };
+
+    const json = JSON.stringify(sectionFile, null, 2);
+    const sizeKb = Math.ceil(json.length / 1024);
+    const filePath = `${PUTER_BASE}/${id}.json`;
+
+    try {
+      await puter.fs.write(filePath, json, { overwrite: true });
+      manifest.sections.push({
+        id,
+        file: `${id}.json`,
+        cardCount: allCards.length,
+        cleanCount: result.cards.length,
+        reviewCount: result.reviewCards.length,
+        sizeKb,
+        priority,
+        lastUpdated: new Date().toISOString().slice(0,10),
+        etag: await hashStr(json)
+      });
+
+      done++;
+      setSecStatus(id, result.reviewCards.length ? 'review' : 'done');
+      document.getElementById('sc-' + id).textContent = `${allCards.length} cards`;
+      document.getElementById('progressBar').style.width = `${Math.round(done/D_REGISTRY.length*100)}%`;
+      log(result.reviewCards.length ? 'warn' : 'ok',
+        `✓ ${filePath} — ${allCards.length} cards, ${sizeKb} KB${result.reviewCards.length ? ` (${result.reviewCards.length} flagged)` : ''}`);
+    } catch(e) {
+      log('err', `✗ Write failed for ${filePath}: ${e.message}`);
+      setSecStatus(id, 'error');
+    }
+    await tick();
+  }
+
+  // Write review queue
+  if (reviewQueue.length) {
+    try {
+      const reviewJson = JSON.stringify({ count: reviewQueue.length, cards: reviewQueue }, null, 2);
+      await puter.fs.write(`${PUTER_BASE}/migration-review.json`, reviewJson, { overwrite: true });
+      log('warn', `⚠ migration-review.json — ${reviewQueue.length} cards need manual QA`);
+    } catch(e) { log('err', `Review queue write failed: ${e.message}`); }
+  }
+
+  // Write search index (id + title + badge + summary only)
+  try {
+    const allForIndex = [];
+    for (const [secId, result] of Object.entries(sectionState)) {
+      const allCards = [...(result.cards || []), ...(result.reviewCards || [])];
+      allCards.forEach(c => allForIndex.push({
+        id: c.id, title: c.title, badge: c.badge,
+        section: c.section, category: c.category,
+        summary: c.content?.summary?.slice(0, 200) || null
+      }));
+    }
+    const idxJson = JSON.stringify({ generatedAt: new Date().toISOString(), cards: allForIndex }, null, 2);
+    await puter.fs.write('/naturaref/index/search-index.json', idxJson, { overwrite: true });
+    log('ok', `/naturaref/index/search-index.json — ${allForIndex.length} entries`);
+  } catch(e) { log('warn', `Search index write failed: ${e.message}`); }
+
+  // Write manifest
+  try {
+    const mJson = JSON.stringify(manifest, null, 2);
+    await puter.fs.write(`${PUTER_BASE}/manifest.json`, mJson, { overwrite: true });
+    log('ok', `${PUTER_BASE}/manifest.json — ${manifest.sections.length} sections`);
+  } catch(e) { log('err', `Manifest write failed: ${e.message}`); }
+
+  document.getElementById('btnWipe').style.display = '';
+  document.getElementById('progressBar').style.width = '100%';
+  log('head', `═══ MIGRATION COMPLETE — ${done} sections written to Puter FS ═══`);
+  if (reviewQueue.length) log('warn', `⚠ ${reviewQueue.length} cards in review queue — check migration-review.json`);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOCAL DOWNLOAD (no Puter FS required)
+// ═══════════════════════════════════════════════════════════
+async function downloadAllJSON() {
+  idRegistry.clear();
+  log('head', '═══ LOCAL DOWNLOAD ═══');
+  for (const entry of D_REGISTRY) {
+    const result = processSection(entry);
+    if (result.error) { log('err', `✗ ${entry.varName}: ${result.error}`); continue; }
+    const allCards = [...result.cards, ...result.reviewCards];
+    const blob = new Blob([JSON.stringify({ schemaVersion:'1.0', section:entry.id, cardCount:allCards.length, cards:allCards }, null, 2)], { type:'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${entry.id}.json`;
+    a.click();
+    await new Promise(r => setTimeout(r, 300));
+  }
+  log('ok', 'All JSON files downloaded locally.');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PUTER FS WIPE (confirmation required)
+// ═══════════════════════════════════════════════════════════
+async function wipePuterFS() {
+  if (!confirm('Delete ALL files under /naturaref/ on Puter FS?\n\nThis cannot be undone.')) return;
+  try {
+    await puter.fs.delete('/naturaref', { recursive: true });
+    log('warn', '🗑 /naturaref/ deleted from Puter FS.');
+  } catch(e) { log('err', `Wipe failed: ${e.message}`); }
+}
+
+function clearAll() {
+  sourceText = '';
+  extractedSections = {};
+  idRegistry.clear();
+  document.getElementById('dropLabel').textContent = 'Drop NaturaRef_Portal_v7-3-2.html here, or click to browse';
+  document.getElementById('dropLabel').className = '';
+  document.getElementById('btnAnalyse').disabled = true;
+  document.getElementById('cardSections').style.display = 'none';
+  document.getElementById('cardLog').style.display = 'none';
+  fileInput.value = '';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════════════
+function tick() { return new Promise(r => setTimeout(r, 0)); }
+
+async function hashStr(str) {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('').slice(0,12);
+}
+
+function log(type, msg) {
+  const el = document.getElementById('log');
+  const div = document.createElement('div');
+  div.className = `log-entry log-${type}`;
+  const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  div.textContent = `${ts}  ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setSecStatus(id, status) {
+  const el = document.getElementById(`sec-${id}`);
+  if (!el) return;
+  const base = el.className.includes('eager') ? 'section-item eager' : 'section-item';
+  el.className = `${base} ${status}`;
+}
+
+function renderStats(sections, cards, review, errors) {
+  const el = document.getElementById('statsRow');
+  el.innerHTML = [
+    ['Sections', sections],
+    ['Clean Cards', cards.toLocaleString()],
+    ['For Review', review.toLocaleString()],
+    ['Errors', errors],
+  ].map(([l, n]) => `<div class="stat"><div class="stat-n">${n}</div><div class="stat-l">${l}</div></div>`).join('');
+}
+</script>
+</body>
+</html>
