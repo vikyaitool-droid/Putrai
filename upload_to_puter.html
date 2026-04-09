@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NaturaRef · Puter FS Uploader</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Lora:ital,wght@1,600&display=swap" rel="stylesheet">
+<script src="https://js.puter.com/v2/"></script>
+<style>
+/* ── Variables ── */
+:root {
+  --sand:       #f2ebe0;
+  --sand2:      #ede4d3;
+  --sand3:      #e5d9c5;
+  --sage:       #6b8f6e;
+  --sage-lt:    #c2d9c4;
+  --sage-pale:  #edf5ee;
+  --sage-deep:  #3a5c3d;
+  --terra:      #c17b52;
+  --terra-lt:   #f5e8de;
+  --terra-pale: #fdf6f0;
+  --ink:        #2a2018;
+  --ink2:       #5a4030;
+  --ink3:       #9a8070;
+  --white:      #fffdf9;
+  --bdr:        #d8cbb8;
+  --r:          10px;
+  --sh:         0 2px 10px rgba(42,32,24,.08);
+  --sh-md:      0 6px 24px rgba(42,32,24,.12);
+  --sh-lg:      0 16px 48px rgba(42,32,24,.16);
+}
+
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+
+html, body {
+  min-height:100vh;
+  background:var(--sand);
+  color:var(--ink);
+  font-family:'Nunito',sans-serif;
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Auth Gate ── */
+#auth-gate {
+  position:fixed; inset:0; z-index:999;
+  background:var(--sage-deep);
+  display:flex; align-items:center; justify-content:center;
+  padding:24px;
+  background-image: radial-gradient(circle at 20% 80%, rgba(193,123,82,.25) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 20%, rgba(194,217,196,.15) 0%, transparent 50%);
+}
+#auth-gate.hidden { display:none; }
+
+.auth-card {
+  background:var(--white);
+  border-radius:18px;
+  padding:40px 44px;
+  max-width:400px; width:100%;
+  box-shadow:var(--sh-lg);
+  text-align:center;
+  animation:slideUp .4s cubic-bezier(.16,1,.3,1);
+}
+.auth-card .brand {
+  font-family:'Lora',serif;
+  font-style:italic;
+  font-size:13px;
+  color:var(--sage);
+  letter-spacing:.04em;
+  margin-bottom:8px;
+}
+.auth-card h1 {
+  font-size:22px; font-weight:800; color:var(--sage-deep);
+  margin-bottom:6px;
+}
+.auth-card .auth-sub {
+  font-size:13px; color:var(--ink3);
+  margin-bottom:28px;
+}
+.auth-icon {
+  width:64px; height:64px;
+  background:var(--sage-pale);
+  border-radius:50%;
+  margin:0 auto 20px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:28px;
+}
+.auth-status {
+  font-size:12px; color:var(--ink3);
+  margin-top:14px;
+  min-height:18px;
+}
+.checking-dots::after {
+  content:'';
+  animation:dots 1.2s steps(4,end) infinite;
+}
+@keyframes dots { 0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} }
+
+/* ── Top Bar ── */
+.topbar {
+  background:var(--sage-deep);
+  padding:0 28px;
+  height:58px;
+  display:flex; align-items:center; justify-content:space-between;
+  box-shadow:0 2px 12px rgba(42,32,24,.18);
+  position:sticky; top:0; z-index:100;
+}
+.topbar-brand {
+  display:flex; align-items:center; gap:10px;
+}
+.topbar-icon {
+  width:34px; height:34px;
+  background:rgba(255,255,255,.12);
+  border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+}
+.topbar-title {
+  font-size:14px; font-weight:800; color:var(--white);
+  letter-spacing:.01em;
+}
+.topbar-sub {
+  font-size:11px; color:rgba(255,255,255,.55); margin-top:1px;
+}
+.user-chip {
+  display:flex; align-items:center; gap:8px;
+  background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:20px;
+  padding:5px 12px 5px 8px;
+}
+.user-dot {
+  width:8px; height:8px;
+  background:#4ade80;
+  border-radius:50%;
+  box-shadow:0 0 6px rgba(74,222,128,.7);
+}
+.user-name { font-size:12px; color:rgba(255,255,255,.85); font-weight:600; }
+
+/* ── Main Layout ── */
+.main {
+  max-width:980px;
+  margin:0 auto;
+  padding:28px 20px 60px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+}
+@media (max-width:700px) { .main { grid-template-columns:1fr; } }
+
+.panel {
+  background:var(--white);
+  border:1px solid var(--bdr);
+  border-radius:14px;
+  box-shadow:var(--sh);
+  overflow:hidden;
+}
+.panel-head {
+  background:var(--sand2);
+  border-bottom:1px solid var(--bdr);
+  padding:14px 18px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.panel-title {
+  font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.09em;
+  color:var(--ink2);
+}
+.panel-badge {
+  font-size:10px; font-weight:700;
+  background:var(--sage-pale);
+  color:var(--sage-deep);
+  border:1px solid var(--sage-lt);
+  border-radius:10px;
+  padding:2px 8px;
+}
+.panel-body { padding:18px; }
+
+/* ── Drop Zone ── */
+.drop-zone {
+  border:2px dashed var(--sage-lt);
+  border-radius:10px;
+  background:var(--sage-pale);
+  padding:32px 20px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .2s;
+  position:relative;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color:var(--sage);
+  background:var(--sage-pale);
+  box-shadow:0 0 0 4px rgba(107,143,110,.1);
+}
+.drop-zone input { display:none; }
+.drop-zone-icon { font-size:32px; margin-bottom:8px; }
+.drop-zone-label { font-size:14px; font-weight:700; color:var(--sage-deep); }
+.drop-zone-hint { font-size:12px; color:var(--ink3); margin-top:4px; }
+
+/* ── File List ── */
+.file-list {
+  margin-top:14px;
+  display:flex; flex-direction:column; gap:6px;
+  max-height:380px; overflow-y:auto;
+}
+.file-list::-webkit-scrollbar { width:4px; }
+.file-list::-webkit-scrollbar-thumb { background:var(--bdr); border-radius:2px; }
+
+.file-item {
+  background:var(--sand);
+  border:1px solid var(--bdr);
+  border-radius:8px;
+  padding:10px 12px;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:10px;
+  animation:slideUp .2s ease;
+}
+.file-item.uploading { border-color:var(--sage-lt); }
+.file-item.done      { border-color:#b6d9b8; background:#f2fbf2; }
+.file-item.error     { border-color:#f5c4c4; background:#fff8f8; }
+.file-item.verified  { border-color:#a2d4a5; background:#ecf8ec; }
+.file-item.mismatch  { border-color:#f5c4c4; background:#fff8f8; }
+
+.file-status-dot {
+  width:10px; height:10px; border-radius:50%; flex-shrink:0;
+  background:var(--bdr);
+  transition:background .3s;
+}
+.file-item.uploading .file-status-dot { background:var(--terra); animation:pulseDot 1s ease-in-out infinite; }
+.file-item.done      .file-status-dot { background:#4ade80; }
+.file-item.error     .file-status-dot { background:#f87171; }
+.file-item.verified  .file-status-dot { background:#22c55e; }
+.file-item.mismatch  .file-status-dot { background:#f97316; }
+
+@keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+
+.file-info { overflow:hidden; }
+.file-name {
+  font-size:12px; font-weight:700; color:var(--ink);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.file-meta { font-size:11px; color:var(--ink3); margin-top:1px; }
+.file-size { font-size:11px; color:var(--ink3); white-space:nowrap; }
+
+.file-bar-wrap {
+  grid-column:2; height:3px;
+  background:var(--bdr);
+  border-radius:2px;
+  overflow:hidden;
+  margin-top:4px;
+}
+.file-bar {
+  height:100%; width:0%;
+  background:linear-gradient(90deg, var(--sage), var(--sage-deep));
+  border-radius:2px;
+  transition:width .4s ease;
+}
+.file-item.done   .file-bar { width:100%; background:linear-gradient(90deg,#4ade80,#16a34a); }
+.file-item.error  .file-bar { width:100%; background:#f87171; }
+
+/* ── Buttons ── */
+.btn {
+  display:inline-flex; align-items:center; gap:7px;
+  padding:10px 20px;
+  border:none; border-radius:8px;
+  font-family:'Nunito',sans-serif;
+  font-size:13px; font-weight:700;
+  cursor:pointer;
+  transition:all .15s;
+  text-decoration:none;
+}
+.btn-primary {
+  background:var(--terra);
+  color:var(--white);
+  box-shadow:0 2px 8px rgba(193,123,82,.35);
+}
+.btn-primary:hover:not(:disabled) {
+  background:#b06340;
+  box-shadow:0 4px 14px rgba(193,123,82,.45);
+  transform:translateY(-1px);
+}
+.btn-secondary {
+  background:var(--white);
+  color:var(--ink2);
+  border:1.5px solid var(--bdr);
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color:var(--sage);
+  color:var(--sage-deep);
+  background:var(--sage-pale);
+}
+.btn-sage {
+  background:var(--sage-deep);
+  color:var(--white);
+  box-shadow:0 2px 8px rgba(58,92,61,.3);
+}
+.btn-sage:hover:not(:disabled) {
+  background:#2d4a30;
+  transform:translateY(-1px);
+}
+.btn:disabled { opacity:.45; cursor:not-allowed; transform:none !important; }
+.btn-sm { padding:7px 14px; font-size:12px; }
+
+/* Sign in button special */
+.btn-signin {
+  width:100%;
+  justify-content:center;
+  padding:13px 20px;
+  font-size:15px;
+  background:var(--terra);
+  color:var(--white);
+  border:none; border-radius:10px;
+  box-shadow:0 4px 16px rgba(193,123,82,.4);
+  cursor:pointer;
+  font-family:'Nunito',sans-serif;
+  font-weight:800;
+  transition:all .18s;
+}
+.btn-signin:hover { background:#b06340; transform:translateY(-1px); box-shadow:0 6px 20px rgba(193,123,82,.5); }
+
+/* ── Controls Bar ── */
+.controls {
+  display:flex; gap:8px; flex-wrap:wrap;
+  margin-top:14px;
+}
+
+/* ── Right Panel ── */
+.dest-box {
+  background:var(--sage-pale);
+  border:1px solid var(--sage-lt);
+  border-radius:8px;
+  padding:12px 14px;
+  margin-bottom:14px;
+  font-size:12px; color:var(--sage-deep);
+  display:flex; align-items:center; gap:8px;
+}
+.dest-box code {
+  font-family:'Fira Code','Cascadia Code',monospace;
+  background:rgba(58,92,61,.1);
+  padding:2px 6px; border-radius:4px;
+  font-size:11px;
+}
+
+/* ── Overall Progress ── */
+.overall-progress {
+  margin-bottom:16px;
+}
+.op-header {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:6px;
+}
+.op-label { font-size:12px; font-weight:700; color:var(--ink2); }
+.op-count { font-size:12px; color:var(--ink3); }
+.op-bar-wrap {
+  height:8px; background:var(--sand2);
+  border-radius:4px; overflow:hidden;
+  border:1px solid var(--bdr);
+}
+.op-bar {
+  height:100%; width:0%;
+  background:linear-gradient(90deg, var(--sage), var(--sage-deep));
+  border-radius:4px;
+  transition:width .5s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Log ── */
+.log-wrap {
+  background:var(--sand2);
+  border:1px solid var(--bdr);
+  border-radius:8px;
+  height:200px; overflow-y:auto;
+  padding:10px 12px;
+  font-size:11.5px;
+  font-family:'Fira Code','Cascadia Code',monospace;
+  margin-bottom:14px;
+}
+.log-wrap::-webkit-scrollbar { width:4px; }
+.log-wrap::-webkit-scrollbar-thumb { background:var(--bdr); border-radius:2px; }
+.log-line { margin-bottom:2px; line-height:1.5; }
+.l-ok   { color:#2d6a2f; }
+.l-warn { color:#92400e; }
+.l-err  { color:#991b1b; }
+.l-info { color:var(--sage-deep); }
+.l-dim  { color:var(--ink3); }
+
+/* ── Manifest Table ── */
+.manifest-section { margin-top:20px; }
+.manifest-title {
+  font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.09em;
+  color:var(--ink2); margin-bottom:10px;
+  display:flex; align-items:center; gap:8px;
+}
+.saved-chip {
+  font-size:10px; background:var(--sage-pale);
+  color:var(--sage-deep); border:1px solid var(--sage-lt);
+  border-radius:10px; padding:2px 8px; font-weight:700;
+}
+.manifest-table {
+  width:100%; border-collapse:collapse;
+  font-size:12px;
+}
+.manifest-table th {
+  background:var(--sand2);
+  padding:7px 10px;
+  text-align:left;
+  font-weight:700; color:var(--ink2);
+  border:1px solid var(--bdr);
+  white-space:nowrap;
+}
+.manifest-table td {
+  padding:7px 10px;
+  border:1px solid var(--bdr);
+  color:var(--ink);
+  background:var(--white);
+}
+.manifest-table tr:nth-child(even) td { background:var(--sand); }
+.tag-eager {
+  background:var(--terra-lt);
+  color:var(--terra);
+  border:1px solid #e8c4a8;
+  border-radius:4px; padding:1px 6px;
+  font-size:10px; font-weight:700;
+}
+.tag-lazy {
+  background:var(--sand2); color:var(--ink3);
+  border:1px solid var(--bdr);
+  border-radius:4px; padding:1px 6px;
+  font-size:10px; font-weight:700;
+}
+.verify-ok   { color:#16a34a; font-weight:700; }
+.verify-fail { color:#dc2626; font-weight:700; }
+.verify-cell { text-align:center; }
+
+/* ── Stats Row ── */
+.stats-row {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  gap:8px; margin-bottom:16px;
+}
+.stat-box {
+  background:var(--sand);
+  border:1px solid var(--bdr);
+  border-radius:8px;
+  padding:10px 12px;
+  text-align:center;
+}
+.stat-n { font-size:22px; font-weight:800; color:var(--sage-deep); }
+.stat-l { font-size:10px; color:var(--ink3); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+
+/* ── Empty State ── */
+.empty-state {
+  text-align:center; padding:32px 20px;
+  color:var(--ink3);
+}
+.empty-state .e-icon { font-size:32px; margin-bottom:8px; opacity:.5; }
+.empty-state .e-text { font-size:13px; }
+
+/* ── Animations ── */
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity:0; } to { opacity:1; }
+}
+.fade-in { animation:fadeIn .3s ease; }
+
+/* ── Upload complete banner ── */
+.done-banner {
+  background:linear-gradient(135deg, var(--sage-deep), #2d4a30);
+  color:var(--white);
+  border-radius:10px;
+  padding:14px 18px;
+  display:flex; align-items:center; gap:12px;
+  margin-bottom:16px;
+  animation:slideUp .4s ease;
+}
+.done-banner .done-icon { font-size:24px; flex-shrink:0; }
+.done-banner .done-title { font-size:14px; font-weight:800; }
+.done-banner .done-sub   { font-size:12px; opacity:.75; margin-top:1px; }
+</style>
+</head>
+<body>
+
+<!-- ── Auth Gate ── -->
+<div id="auth-gate">
+  <div class="auth-card">
+    <div class="brand">NaturaRef · Clinical Reference</div>
+    <div class="auth-icon">☁️</div>
+    <h1>Puter FS Uploader</h1>
+    <p class="auth-sub">Sign in to your Puter account to upload JSON data files to <code>/naturaref/data/v1/</code></p>
+    <button class="btn-signin" id="btnSignIn" onclick="signIn()">🌿 Sign in with Puter</button>
+    <div class="auth-status" id="authStatus"></div>
+  </div>
+</div>
+
+<!-- ── Top Bar ── -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-icon">🌿</div>
+    <div>
+      <div class="topbar-title">NaturaRef · Puter FS Uploader</div>
+      <div class="topbar-sub">Upload migrated JSON → /naturaref/data/v1/</div>
+    </div>
+  </div>
+  <div class="user-chip" id="userChip" style="display:none">
+    <div class="user-dot"></div>
+    <span class="user-name" id="userName">—</span>
+  </div>
+</div>
+
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- LEFT: File Picker -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">① Select Files</span>
+      <span class="panel-badge" id="fileCountBadge">0 files</span>
+    </div>
+    <div class="panel-body">
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" accept=".json" multiple onchange="handleFileInput(this.files)">
+        <div class="drop-zone-icon">📂</div>
+        <div class="drop-zone-label">Drop JSON files here</div>
+        <div class="drop-zone-hint">Or click to browse · Accepts multiple .json files</div>
+      </div>
+
+      <div class="file-list" id="fileList">
+        <div class="empty-state" id="emptyState">
+          <div class="e-icon">🗂</div>
+          <div class="e-text">No files selected yet</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn btn-primary" id="btnUpload" onclick="startUpload()" disabled>
+          ⬆ Upload to Puter FS
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="clearFiles()" id="btnClear" disabled>
+          Clear
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Progress & Results -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">② Upload Progress</span>
+      <span class="panel-badge" id="statusBadge">Waiting</span>
+    </div>
+    <div class="panel-body">
+
+      <div class="dest-box">
+        ☁️ Destination: <code>/naturaref/data/v1/{filename}</code>
+      </div>
+
+      <div class="stats-row" id="statsRow">
+        <div class="stat-box"><div class="stat-n" id="statTotal">0</div><div class="stat-l">Queued</div></div>
+        <div class="stat-box"><div class="stat-n" id="statDone">0</div><div class="stat-l">Done</div></div>
+        <div class="stat-box"><div class="stat-n" id="statCards">0</div><div class="stat-l">Cards</div></div>
+      </div>
+
+      <div class="overall-progress">
+        <div class="op-header">
+          <span class="op-label">Overall progress</span>
+          <span class="op-count" id="opCount">0 / 0</span>
+        </div>
+        <div class="op-bar-wrap">
+          <div class="op-bar" id="opBar"></div>
+        </div>
+      </div>
+
+      <div class="log-wrap" id="logWrap">
+        <div class="log-line l-dim">— Ready. Select JSON files and press Upload. —</div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sage btn-sm" id="btnVerify" onclick="verifyFiles()" disabled>
+          ✓ Verify uploads
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btnClearLog" onclick="clearLog()">
+          Clear log
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- Manifest Table — full width below grid -->
+<div style="max-width:980px;margin:0 auto;padding:0 20px 60px" id="manifestSection" class="fade-in" style="display:none">
+  <div class="panel" id="manifestPanel" style="display:none">
+    <div class="panel-head">
+      <span class="panel-title">③ Manifest · Section Summary</span>
+      <span class="panel-badge" id="manifestSavedChip"></span>
+    </div>
+    <div class="panel-body">
+      <div id="doneBanner"></div>
+      <div style="overflow-x:auto">
+        <table class="manifest-table" id="manifestTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Section ID</th>
+              <th>File</th>
+              <th>Cards</th>
+              <th>Size</th>
+              <th>Priority</th>
+              <th>Schema</th>
+              <th>Verify</th>
+            </tr>
+          </thead>
+          <tbody id="manifestBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+const FILES = new Map();    // filename → { file, data, status, cardCount, sizeKb }
+const PUTER_BASE = '/naturaref/data/v1';
+const EAGER = ['lab','skills'];  // match architecture decision
+
+let uploadDone = false;
+let verifyData = {};   // filename → { expected, actual, ok }
+
+// ═══════════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════════
+async function checkAuth() {
+  const status = document.getElementById('authStatus');
+  status.className = 'auth-status checking-dots';
+  status.textContent = 'Checking authentication';
+  try {
+    const user = await puter.auth.getUser();
+    if (user) { onSignedIn(user); return; }
+  } catch (_) {}
+  status.className = 'auth-status';
+  status.textContent = 'Not signed in';
+}
+
+async function signIn() {
+  const status = document.getElementById('authStatus');
+  const btn = document.getElementById('btnSignIn');
+  btn.disabled = true;
+  status.textContent = 'Opening sign-in window…';
+  try {
+    await puter.auth.signIn();
+    const user = await puter.auth.getUser();
+    onSignedIn(user);
+  } catch(e) {
+    status.textContent = `Sign-in failed: ${e.message}`;
+    btn.disabled = false;
+  }
+}
+
+function onSignedIn(user) {
+  document.getElementById('auth-gate').classList.add('hidden');
+  document.getElementById('userChip').style.display = '';
+  document.getElementById('userName').textContent = user.username || user.email || 'Signed in';
+  log('ok', `Signed in as ${user.username || user.email}`);
+  log('dim', `Destination: ${PUTER_BASE}/`);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FILE HANDLING
+// ═══════════════════════════════════════════════════════════
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const files = [...e.dataTransfer.files].filter(f => f.name.endsWith('.json'));
+  if (files.length) handleFileInput(files);
+});
+
+function handleFileInput(fileList) {
+  const files = [...fileList];
+  files.forEach(file => {
+    if (!file.name.endsWith('.json')) return;
+    if (!FILES.has(file.name)) {
+      FILES.set(file.name, { file, data:null, status:'pending', cardCount:0, sizeKb:0 });
+      readFileData(file);
+    }
+  });
+  renderFileList();
+  updateControls();
+}
+
+function readFileData(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      const entry = FILES.get(file.name);
+      if (!entry) return;
+      entry.data = e.target.result;
+      entry.sizeKb = Math.ceil(file.size / 1024);
+      entry.cardCount = parsed.cardCount || parsed.cards?.length || 0;
+      entry.sectionId = parsed.section || file.name.replace('.json','');
+      entry.schema = detectSchema(parsed);
+      renderFileItem(file.name);
+      updateStats();
+    } catch(_) {
+      const entry = FILES.get(file.name);
+      if (entry) { entry.status = 'error'; entry.meta = 'Invalid JSON'; }
+      renderFileItem(file.name);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function detectSchema(parsed) {
+  if (!parsed.cards || !parsed.cards.length) return '—';
+  const first = parsed.cards[0];
+  if (first.content?.alerts !== undefined) return 'A / B / C';
+  return 'Legacy';
+}
+
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  document.getElementById('emptyState').style.display = FILES.size ? 'none' : '';
+  [...FILES.keys()].forEach(name => {
+    if (!document.getElementById(`fi-${CSS.escape(name)}`)) {
+      const div = document.createElement('div');
+      div.id = `fi-${CSS.escape(name)}`;
+      div.className = 'file-item';
+      div.innerHTML = `
+        <div class="file-status-dot" id="dot-${CSS.escape(name)}"></div>
+        <div class="file-info">
+          <div class="file-name">${escHtml(name)}</div>
+          <div class="file-meta" id="meta-${CSS.escape(name)}">Reading…</div>
+          <div class="file-bar-wrap"><div class="file-bar" id="bar-${CSS.escape(name)}"></div></div>
+        </div>
+        <div class="file-size" id="size-${CSS.escape(name)}">—</div>
+      `;
+      list.appendChild(div);
+    }
+  });
+  document.getElementById('fileCountBadge').textContent = `${FILES.size} file${FILES.size !== 1 ? 's' : ''}`;
+}
+
+function renderFileItem(name) {
+  const entry = FILES.get(name);
+  if (!entry) return;
+  const el = document.getElementById(`fi-${CSS.escape(name)}`);
+  const meta = document.getElementById(`meta-${CSS.escape(name)}`);
+  const size = document.getElementById(`size-${CSS.escape(name)}`);
+  if (!el) return;
+  el.className = `file-item ${entry.status}`;
+  if (meta) meta.textContent = entry.cardCount ? `${entry.cardCount.toLocaleString()} cards · ${entry.schema || ''}` : (entry.meta || 'Parsing…');
+  if (size) size.textContent = entry.sizeKb ? `${entry.sizeKb} KB` : '';
+}
+
+function updateControls() {
+  const hasPending = [...FILES.values()].some(e => e.status === 'pending');
+  document.getElementById('btnUpload').disabled = !hasPending || uploadDone;
+  document.getElementById('btnClear').disabled = FILES.size === 0;
+}
+
+function updateStats() {
+  const all = [...FILES.values()];
+  document.getElementById('statTotal').textContent = FILES.size;
+  document.getElementById('statDone').textContent = all.filter(e => e.status === 'done').length;
+  document.getElementById('statCards').textContent = all.reduce((s,e) => s + (e.cardCount||0), 0).toLocaleString();
+  document.getElementById('opCount').textContent = `${all.filter(e => e.status === 'done').length} / ${FILES.size}`;
+  document.getElementById('opBar').style.width = FILES.size
+    ? `${Math.round(all.filter(e=>e.status==='done').length / FILES.size * 100)}%` : '0%';
+}
+
+function clearFiles() {
+  FILES.clear();
+  document.getElementById('fileList').innerHTML = `<div class="empty-state" id="emptyState"><div class="e-icon">🗂</div><div class="e-text">No files selected yet</div></div>`;
+  document.getElementById('fileCountBadge').textContent = '0 files';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('btnVerify').disabled = true;
+  uploadDone = false;
+  updateControls();
+  updateStats();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UPLOAD
+// ═══════════════════════════════════════════════════════════
+async function startUpload() {
+  document.getElementById('btnUpload').disabled = true;
+  document.getElementById('btnClear').disabled = true;
+  document.getElementById('statusBadge').textContent = 'Uploading…';
+
+  log('info', '═══ UPLOAD START ═══');
+
+  // Ensure directories
+  try {
+    await puter.fs.mkdir('/naturaref', { recursive: true });
+    await puter.fs.mkdir('/naturaref/data', { recursive: true });
+    await puter.fs.mkdir(PUTER_BASE, { recursive: true });
+    await puter.fs.mkdir('/naturaref/index', { recursive: true });
+    log('ok', 'Directories ready: /naturaref/data/v1/');
+  } catch(e) {
+    log('warn', `mkdir: ${e.message} (may already exist)`);
+  }
+
+  const manifestSections = [];
+  let doneCount = 0;
+
+  for (const [name, entry] of FILES.entries()) {
+    if (entry.status === 'done') { doneCount++; continue; }
+    if (!entry.data) {
+      log('warn', `⚠ ${name} — still reading, skipping`);
+      continue;
+    }
+
+    entry.status = 'uploading';
+    renderFileItem(name);
+    setBar(name, 30);
+    log('info', `↑ ${name} (${entry.sizeKb} KB, ${entry.cardCount} cards)…`);
+
+    try {
+      const path = `${PUTER_BASE}/${name}`;
+      setBar(name, 60);
+      await puter.fs.write(path, entry.data, { overwrite: true });
+      setBar(name, 100);
+      entry.status = 'done';
+      renderFileItem(name);
+      doneCount++;
+      log('ok', `✓ ${name} → ${path}`);
+
+      // Build manifest entry
+      try {
+        const parsed = JSON.parse(entry.data);
+        const isEager = EAGER.includes(entry.sectionId);
+        manifestSections.push({
+          id: entry.sectionId || name.replace('.json',''),
+          file: name,
+          cardCount: entry.cardCount,
+          sizeKb: entry.sizeKb,
+          priority: isEager ? 'eager' : 'lazy',
+          lastUpdated: new Date().toISOString().slice(0,10),
+          etag: await hashStr(entry.data)
+        });
+      } catch(_) {}
+
+    } catch(e) {
+      entry.status = 'error';
+      entry.meta = e.message;
+      renderFileItem(name);
+      log('err', `✗ ${name}: ${e.message}`);
+    }
+
+    updateStats();
+    await tick();
+  }
+
+  // Build and write manifest.json
+  if (manifestSections.length) {
+    const manifest = {
+      schemaVersion: '1.0',
+      appVersion: '7.3.2',
+      generatedAt: new Date().toISOString(),
+      sections: manifestSections
+    };
+    const mJson = JSON.stringify(manifest, null, 2);
+    try {
+      await puter.fs.write(`${PUTER_BASE}/manifest.json`, mJson, { overwrite: true });
+      log('ok', `manifest.json saved — ${manifestSections.length} sections`);
+      document.getElementById('manifestSavedChip').textContent = '✓ manifest.json saved';
+    } catch(e) {
+      log('err', `manifest.json write failed: ${e.message}`);
+    }
+
+    renderManifestTable(manifestSections);
+  }
+
+  document.getElementById('statusBadge').textContent = `${doneCount} done`;
+  document.getElementById('btnVerify').disabled = false;
+  document.getElementById('btnClear').disabled = false;
+  uploadDone = true;
+  log('info', `═══ UPLOAD COMPLETE — ${doneCount} files ═══`);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  VERIFY
+// ═══════════════════════════════════════════════════════════
+async function verifyFiles() {
+  document.getElementById('btnVerify').disabled = true;
+  log('info', '═══ VERIFY START ═══');
+
+  for (const [name, entry] of FILES.entries()) {
+    if (entry.status !== 'done') continue;
+    const path = `${PUTER_BASE}/${name}`;
+    try {
+      const remoteFile = await puter.fs.read(path);
+      const remoteText = await remoteFile.text();
+      const remote = JSON.parse(remoteText);
+      const remoteCount = remote.cardCount || remote.cards?.length || 0;
+      const localCount = entry.cardCount;
+      const ok = remoteCount === localCount;
+
+      verifyData[name] = { expected: localCount, actual: remoteCount, ok };
+      entry.status = ok ? 'verified' : 'mismatch';
+      entry.meta = ok
+        ? `✓ ${remoteCount} cards verified on Puter FS`
+        : `⚠ Mismatch: local ${localCount} vs remote ${remoteCount}`;
+      renderFileItem(name);
+
+      if (ok) log('ok', `✓ ${name} — ${remoteCount} cards match`);
+      else    log('err', `✗ ${name} — expected ${localCount}, got ${remoteCount}`);
+
+      // Update manifest table verify column
+      updateManifestVerify(name, ok, remoteCount);
+    } catch(e) {
+      verifyData[name] = { ok: false, error: e.message };
+      entry.status = 'error';
+      entry.meta = `Read error: ${e.message}`;
+      renderFileItem(name);
+      log('err', `✗ ${name}: ${e.message}`);
+      updateManifestVerify(name, false, '—');
+    }
+    await tick();
+  }
+
+  log('info', '═══ VERIFY COMPLETE ═══');
+  document.getElementById('btnVerify').disabled = false;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MANIFEST TABLE
+// ═══════════════════════════════════════════════════════════
+function renderManifestTable(sections) {
+  const panel = document.getElementById('manifestPanel');
+  const body  = document.getElementById('manifestBody');
+  panel.style.display = '';
+
+  // Done banner
+  document.getElementById('doneBanner').innerHTML = `
+    <div class="done-banner">
+      <div class="done-icon">🌿</div>
+      <div>
+        <div class="done-title">Upload complete</div>
+        <div class="done-sub">${sections.length} sections written · manifest.json saved to Puter FS</div>
+      </div>
+    </div>`;
+
+  body.innerHTML = '';
+  sections.forEach((sec, i) => {
+    const tr = document.createElement('tr');
+    tr.id = `mrow-${CSS.escape(sec.file)}`;
+    tr.innerHTML = `
+      <td style="color:var(--ink3);font-size:11px">${i+1}</td>
+      <td style="font-weight:700;font-family:monospace;font-size:12px">${escHtml(sec.id)}</td>
+      <td style="font-family:monospace;font-size:11px">${escHtml(sec.file)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums">${(sec.cardCount||0).toLocaleString()}</td>
+      <td style="text-align:right;color:var(--ink3)">${sec.sizeKb} KB</td>
+      <td><span class="${sec.priority === 'eager' ? 'tag-eager' : 'tag-lazy'}">${sec.priority}</span></td>
+      <td style="color:var(--ink3);font-size:11px">v1</td>
+      <td class="verify-cell" id="vcell-${CSS.escape(sec.file)}"><span style="color:var(--ink3);font-size:11px">—</span></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  // Scroll to table
+  setTimeout(() => panel.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+}
+
+function updateManifestVerify(filename, ok, count) {
+  const cell = document.getElementById(`vcell-${CSS.escape(filename)}`);
+  if (!cell) return;
+  cell.innerHTML = ok
+    ? `<span class="verify-ok">✓ ${count}</span>`
+    : `<span class="verify-fail">✗ ${count}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOG
+// ═══════════════════════════════════════════════════════════
+function log(type, msg) {
+  const el = document.getElementById('logWrap');
+  const div = document.createElement('div');
+  div.className = `log-line l-${type}`;
+  const ts = new Date().toLocaleTimeString('en-GB', { hour12:false });
+  div.textContent = `${ts}  ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog() {
+  document.getElementById('logWrap').innerHTML = '<div class="log-line l-dim">— Log cleared. —</div>';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════════════
+function tick() { return new Promise(r => setTimeout(r, 0)); }
+
+function setBar(name, pct) {
+  const bar = document.getElementById(`bar-${CSS.escape(name)}`);
+  if (bar) bar.style.width = pct + '%';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function hashStr(str) {
+  try {
+    const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('').slice(0,12);
+  } catch(_) {
+    return Date.now().toString(16);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', checkAuth);
+</script>
+</body>
+</html>
